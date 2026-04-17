@@ -1,69 +1,44 @@
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-# 1. Подключение к базе с усиленными параметрами
-def get_conn():
-    db_url = st.secrets["DATABASE_URL"]
-    # Добавляем параметры для стабильности в облаке
-    return create_engine(
-        db_url,
-        connect_args={
-            "sslmode": "require",
-            "connect_timeout": 10
-        },
-        pool_pre_ping=True # Проверяет живое ли соединение перед использованием
-    )
-
-engine = get_conn()
+# Прямое создание движка с параметрами для облака
+engine = create_engine(
+    st.secrets["DATABASE_URL"],
+    connect_args={
+        "connect_timeout": 10,
+        "application_name": "vanta_erp"
+    },
+    pool_pre_ping=True
+)
 
 st.title("📱 Кабинет выездного мастера")
 
-# В MVP эмулируем, что зашел мастер с ID 1
+# ID мастера (пока хардкод для теста)
 MASTER_ID = 1 
 
-# 2. Получаем список назначенных заявок
-query = text("""
-    SELECT rr.id, rr.bike_id, b.serial_number, rr.status, rr.type
-    FROM repair_request rr
-    JOIN bike b ON rr.bike_id = b.id
-    WHERE rr.master_id = :master_id 
-      AND rr.status IN ('назначена', 'в работе')
-""")
+try:
+    with engine.connect() as conn:
+        # Простой запрос для проверки связи
+        query = text("""
+            SELECT rr.id, b.serial_number, rr.status
+            FROM repair_request rr
+            JOIN bike b ON rr.bike_id = b.id
+            WHERE rr.master_id = :mid AND rr.status IN ('назначена', 'в работе')
+        """)
+        tasks = conn.execute(query, {"mid": MASTER_ID}).fetchall()
 
-with engine.connect() as conn:
-    tasks = conn.execute(query, {"master_id": MASTER_ID}).fetchall()
+    if not tasks:
+        st.info("Активных заявок нет")
+    else:
+        for task in tasks:
+            with st.container(border=True):
+                st.write(f"**Заявка №{task.id}** | Байк: {task.serial_number}")
+                st.write(f"Статус: {task.status}")
+                
+                # Кнопка для теста связи
+                if st.button(f"Обновить {task.id}", key=task.id):
+                    st.success("Связь есть!")
 
-if not tasks:
-    st.info("У вас нет активных заявок на ремонт")
-else:
-    for task in tasks:
-        with st.container(border=True):
-            st.write(f"**Заявка №{task.id}** | Байк: {task.serial_number}")
-            st.write(f"Тип: {task.type} | Статус: {task.status}")
-
-            # ЛОГИКА КНОПОК
-            if task.status == 'назначена':
-                if st.button(f"Начать ремонт {task.id}", key=f"start_{task.id}"):
-                    with engine.begin() as conn:
-                        # Меняем статус заявки
-                        conn.execute(text("UPDATE repair_request SET status = 'в работе' WHERE id = :id"), {"id": task.id})
-                        # Меняем статус байка
-                        conn.execute(text("UPDATE bike SET tech_status = 'В ремонте' WHERE id = :id"), {"id": task.bike_id})
-                        # Пишем в лог
-                        conn.execute(text("""
-                            INSERT INTO bike_log (bike_id, employee_id, new_tech_status, description)
-                            VALUES (:b_id, :e_id, 'В ремонте', 'Мастер начал работу')
-                        """), {"b_id": task.bike_id, "e_id": MASTER_ID})
-                    st.rerun()
-
-            if task.status == 'в работе':
-                if st.button(f"✅ Завершить ремонт {task.id}", key=f"comp_{task.id}"):
-                    with engine.begin() as conn:
-                        conn.execute(text("UPDATE repair_request SET status = 'завершена' WHERE id = :id"), {"id": task.id})
-                        conn.execute(text("UPDATE bike SET tech_status = 'Исправен' WHERE id = :id"), {"id": task.bike_id})
-                        conn.execute(text("""
-                            INSERT INTO bike_log (bike_id, employee_id, new_tech_status, description)
-                            VALUES (:b_id, :e_id, 'Исправен', 'Ремонт завершен успешно')
-                        """), {"b_id": task.bike_id, "e_id": MASTER_ID})
-                    st.success("Готово!")
-                    st.rerun()
+except Exception as e:
+    st.error("Ошибка подключения к базе")
+    st.code(str(e))
