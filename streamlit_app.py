@@ -6,7 +6,8 @@ engine = create_engine(
     st.secrets["DATABASE_URL"],
     connect_args={
         "connect_timeout": 10,
-        "application_name": "vanta_erp"
+        "application_name": "vanta_erp",
+        "options": "-c prepare_threshold=0"  # Вот теперь это уйдет правильно
     },
     pool_pre_ping=True
 )
