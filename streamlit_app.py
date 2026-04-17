@@ -1,10 +1,18 @@
 import streamlit as st
 from sqlalchemy import create_engine, text
 
-# 1. Подключение к базе (данные возьмем из настроек Streamlit позже)
+# 1. Подключение к базе с усиленными параметрами
 def get_conn():
     db_url = st.secrets["DATABASE_URL"]
-    return create_engine(db_url)
+    # Добавляем параметры для стабильности в облаке
+    return create_engine(
+        db_url,
+        connect_args={
+            "sslmode": "require",
+            "connect_timeout": 10
+        },
+        pool_pre_ping=True # Проверяет живое ли соединение перед использованием
+    )
 
 engine = get_conn()
 
