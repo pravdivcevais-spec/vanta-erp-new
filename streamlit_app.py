@@ -6,10 +6,13 @@ engine = create_engine(
     st.secrets["DATABASE_URL"],
     connect_args={
         "connect_timeout": 10,
-        "application_name": "vanta_erp",
-        "options": "-c prepare_threshold=0"  # Вот теперь это уйдет правильно
+        "options": "-c prepare_threshold=0"
     },
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    # Это заставит SQLAlchemy не плодить лишних соединений,
+    # которые пулер Supabase может блокировать
+    pool_size=5,
+    max_overflow=0
 )
 
 st.title("📱 Кабинет выездного мастера")
