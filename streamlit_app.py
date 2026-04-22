@@ -2,19 +2,23 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 
 # Прямое создание движка с параметрами для облака
-engine = create_engine(
-    st.secrets["DATABASE_URL"],
-    connect_args={
-        "connect_timeout": 10,
-        "options": "-c prepare_threshold=0"
-    },
-    pool_pre_ping=True,
-    # Это заставит SQLAlchemy не плодить лишних соединений,
-    # которые пулер Supabase может блокировать
-    pool_size=5,
-    max_overflow=0
-)
-
+try:
+    engine = create_engine(
+        st.secrets["DATABASE_URL"],
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c prepare_threshold=0"
+        },
+        pool_pre_ping=True,
+        # Это заставит SQLAlchemy не плодить лишних соединений,
+        # которые пулер Supabase может блокировать
+        pool_size=5,
+        max_overflow=0
+    )
+except Exception as e:
+    st.error("Ошибка подключения к Базе данных")
+    st.code(str(e))
+    
 st.title("📱 Кабинет выездного мастера")
 
 # ID мастера (пока хардкод для теста)
